@@ -1,0 +1,23 @@
+# Build
+build/
+cmake-build-*/
+*.o
+*.a
+*.so
+*.dylib
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# DPM artifacts
+.dpm_env/
+dpm.lock
+node_modules/
+
+# macOS
+.DS_Store
+

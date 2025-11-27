@@ -1,7 +1,4 @@
 # DPM - Dependency Package Manager
-
-A cross-language package manager written in C++ that resolves dependencies using a hybrid greedy/backtracking algorithm.
-
 ```
   ____  ____  __  __ 
  |  _ \|  _ \|  \/  |
@@ -9,6 +6,9 @@ A cross-language package manager written in C++ that resolves dependencies using
  | |_| |  __/| |  | |
  |____/|_|   |_|  |_|
 ```
+
+A cross-language package manager written in C++ that resolves dependencies using a hybrid greedy/backtracking algorithm.
+
 
 ## What it does
 

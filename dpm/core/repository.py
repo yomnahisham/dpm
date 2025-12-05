@@ -27,8 +27,19 @@ class RepositoryManager:
             self.config_path = home / ".dpm" / "repositories.json"
         
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        # set secure permissions on directory if it's new
+        import os
+        if self.config_path.parent.exists():
+            os.chmod(self.config_path.parent, 0o700)
         self.repositories: Dict[str, Repository] = {}
         self._load()
+        
+        # ensure existing file has correct permissions
+        if self.config_path.exists():
+            try:
+                os.chmod(self.config_path, 0o600)
+            except Exception:
+                pass
     
     def _load(self):
         """load repositories from config"""
@@ -48,7 +59,7 @@ class RepositoryManager:
             self.repositories = {}
     
     def _save(self):
-        """save repositories to config"""
+        """save repositories to config with secure file permissions"""
         data = {
             "repositories": {}
         }
@@ -59,8 +70,26 @@ class RepositoryManager:
             }
         
         try:
-            with open(self.config_path, 'w') as f:
+            # write to temporary file first, then move (atomic write)
+            import tempfile
+            import os
+            import shutil
+            
+            # create temp file in same directory
+            temp_file = self.config_path.with_suffix('.tmp')
+            
+            with open(temp_file, 'w') as f:
                 json.dump(data, f, indent=2)
+            
+            # set secure permissions (read/write for owner only)
+            os.chmod(temp_file, 0o600)
+            
+            # atomically move to final location
+            temp_file.replace(self.config_path)
+            
+            # ensure final file has correct permissions
+            os.chmod(self.config_path, 0o600)
+            
             return True
         except Exception:
             return False
@@ -89,4 +118,5 @@ class RepositoryManager:
     def get(self, name: str) -> Optional[Repository]:
         """get a repository by name"""
         return self.repositories.get(name)
+
 

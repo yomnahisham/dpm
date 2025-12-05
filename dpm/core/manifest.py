@@ -111,3 +111,4 @@ class Manifest:
             return ["pypi", "npm"]
         return data.get("sources", ["pypi", "npm"])
 
+

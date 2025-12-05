@@ -165,3 +165,4 @@ def info(message: str):
     """print info message"""
     print(f"{Color.CYAN}[INFO]{Color.RESET} {message}")
 
+

@@ -639,6 +639,12 @@ dpm export lock
 
 DPM supports custom package repositories for private registries, mirrors, and alternative package sources.
 
+**Security Note**: Credentials are stored in `~/.dpm/repositories.json` with restricted permissions (600). However, passwords are stored in plain text. For better security:
+- Use API tokens instead of passwords when possible
+- Ensure `~/.dpm/repositories.json` has proper permissions (`chmod 600`)
+- Avoid committing this file to version control
+- Consider using environment variables for sensitive credentials
+
 ### Use Cases
 
 1. **Private Package Registries**: Connect to your company's internal package registry
@@ -648,6 +654,10 @@ DPM supports custom package repositories for private registries, mirrors, and al
 
 2. **Authenticated Repositories**: Access private packages with credentials
    ```bash
+   # Recommended: Use API tokens instead of passwords
+   dpm repo add private https://private.com/repo token ""
+   
+   # Alternative: Use username/password (stored in plain text)
    dpm repo add private https://private.com/repo username password
    ```
 

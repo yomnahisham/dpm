@@ -87,3 +87,4 @@ class Config:
         """get log file path"""
         return self.get("log_file", str(Path.home() / ".dpm" / "dpm.log"))
 
+

@@ -222,6 +222,12 @@ Manage custom package repositories. This feature allows you to configure additio
 
 **Status**: ✅ Fully implemented and tested. Custom repositories are used during package resolution.
 
+**Security Note**: Credentials are stored in `~/.dpm/repositories.json` with restricted file permissions (600). However, passwords are stored in plain text. For better security:
+- Use API tokens instead of passwords when possible
+- Ensure the repositories file has proper permissions (`chmod 600 ~/.dpm/repositories.json`)
+- Avoid committing this file to version control
+- Consider using environment variables for sensitive credentials
+
 **Use Cases:**
 
 1. **Private Package Registries**: Add your company's internal package registry
@@ -229,7 +235,10 @@ Manage custom package repositories. This feature allows you to configure additio
    # Add private PyPI mirror
    dpm repo add company-pypi https://pypi.company.com
    
-   # Add private npm registry with authentication
+   # Add private npm registry with authentication (recommended: use token)
+   dpm repo add company-npm https://npm.company.com token ""
+   
+   # Alternative: username/password (stored in plain text)
    dpm repo add company-npm https://npm.company.com username password
    ```
 
@@ -254,7 +263,10 @@ dpm repo list
 # add a repository (public)
 dpm repo add myrepo https://example.com/repo
 
-# add a repository with authentication
+# add a repository with authentication (recommended: use token)
+dpm repo add private https://private.com/repo token ""
+
+# add a repository with username/password (stored in plain text)
 dpm repo add private https://private.com/repo username password
 
 # remove a repository

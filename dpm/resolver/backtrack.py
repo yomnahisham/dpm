@@ -300,3 +300,4 @@ class BacktrackResolver:
         self.failed_states.add(state_hash)
         return False
 
+

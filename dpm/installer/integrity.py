@@ -61,3 +61,4 @@ class Integrity:
         """format hash as integrity string"""
         return f"sha256:{hash_value}"
 
+

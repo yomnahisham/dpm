@@ -79,3 +79,4 @@ class Logger:
         """log critical message"""
         self.logger.critical(message)
 
+

@@ -64,3 +64,4 @@ class PackageState:
         """get all installed packages"""
         return self.installed_packages.copy()
 
+

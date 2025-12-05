@@ -625,6 +625,12 @@ dpm cache clear
 
 Manage custom package repositories.
 
+**Security Note**: Credentials are stored in `~/.dpm/repositories.json` with restricted file permissions (600). However, passwords are stored in plain text. For better security:
+- Use API tokens instead of passwords when possible
+- Ensure the repositories file has proper permissions (`chmod 600 ~/.dpm/repositories.json`)
+- Avoid committing this file to version control
+- Consider using environment variables for sensitive credentials
+
 **Syntax:**
 ```bash
 dpm repo <command> [args...]
@@ -655,7 +661,10 @@ Add a custom repository.
 # Add public repository
 dpm repo add company-pypi https://pypi.company.com/pypi/
 
-# Add authenticated repository
+# Add authenticated repository (recommended: use token)
+dpm repo add private-npm https://npm.company.com/ token ""
+
+# Alternative: username/password (stored in plain text)
 dpm repo add private-npm https://npm.company.com/ username password
 ```
 
@@ -1064,4 +1073,5 @@ For more information, see:
 - [CLI Reference](cli.md)
 - [Architecture](architecture.md)
 - [Testing Guide](testing.md)
+
 

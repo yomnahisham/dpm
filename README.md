@@ -1,13 +1,7 @@
 # DPM - Dependency Package Manager
-```
-  ____  ____  __  __ 
- |  _ \|  _ \|  \/  |
- | | | | |_) | |\/| |
- | |_| |  __/| |  | |
- |____/|_|   |_|  |_|
-```
+<img width="1200" height="644" alt="Screenshot 2025-12-05 at 10 21 18 PM" src="https://github.com/user-attachments/assets/86bb28b3-a6af-42b8-872e-9734564b9c9d" />
 
-A cross-language package manager written in Python that resolves dependencies using a hybrid greedy/backtracking algorithm.
+_A cross-language package manager written in Python that resolves dependencies using a hybrid greedy/backtracking algorithm._
 
 ## What it does
 
@@ -253,9 +247,9 @@ The hybrid approach gives you the best of both worlds:
 
 | Approach | Speed | Completeness | Use Case |
 |---------|-------|--------------|----------|
-| Greedy only | ⚡ Very fast | ❌ Incomplete | Simple projects |
-| Backtracking only | 🐌 Slow | ✅ Complete | Complex projects |
-| **Hybrid** | ⚡ Fast (90% of time) | ✅ Complete | **All projects** |
+| Greedy only | Very fast | Incomplete | Simple projects |
+| Backtracking only | Slow | Complete | Complex projects |
+| **Hybrid** | Fast (90% of time) | Complete | **All projects** |
 
 **Real-world performance:**
 - Simple cases (1-3 packages): < 1 second (greedy)

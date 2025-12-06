@@ -79,23 +79,80 @@ int CommandHandler::handleInstall(const vector<string>& packages) {
     
     ResolutionResult result;
     bool from_lockfile = false;
+    vector<string> packages_to_install = packages;  // Make a mutable copy
     
-    // If no packages specified, try to install from lock file
-    if (packages.empty()) {
+    // If no packages specified, try to install from lock file or manifest
+    if (packages_to_install.empty()) {
         if (lockfile->exists() && lockfile->load()) {
             Output::info("Installing from lock file: " + lockfile->getPath());
             result.success = true;
             result.selected_versions = lockfile->getLockedVersions();
             from_lockfile = true;
         } else {
-            Output::error("No packages specified and no lock file found");
-            Output::footer();
-            return 1;
+            // Try manifest file
+            string manifest_path = "dpm.json";
+            if (fs::exists(manifest_path)) {
+                ifstream file(manifest_path);
+                if (file.is_open()) {
+                    nlohmann::json manifest;
+                    try {
+                        file >> manifest;
+                        file.close();
+                        
+                        if (manifest.contains("dependencies")) {
+                            map<string, string> deps;
+                            for (auto& [key, value] : manifest["dependencies"].items()) {
+                                deps[key] = value.get<string>();
+                            }
+                            
+                            if (!deps.empty()) {
+                                Output::info("Installing from manifest file (dpm.json)...");
+                                cout << "Found " << deps.size() << " dependencies in manifest" << endl;
+                                
+                                // Convert to vector for resolution
+                                for (const auto& pair : deps) {
+                                    packages_to_install.push_back(pair.first);
+                                }
+                            } else {
+                                Output::error("No dependencies found in manifest file");
+                                Output::footer();
+                                return 1;
+                            }
+                        } else {
+                            Output::error("No dependencies found in manifest file");
+                            Output::footer();
+                            return 1;
+                        }
+                    } catch (...) {
+                        Output::error("Failed to parse manifest file");
+                        Output::footer();
+                        return 1;
+                    }
+                } else {
+                    Output::error("No packages specified and no lock file or manifest found");
+                    cout << "  Use: " << Color::CYAN << "dpm install <packages>" << Color::RESET << endl;
+                    cout << "  Or:  " << Color::CYAN << "dpm init" << Color::RESET << " to create dpm.json" << endl;
+                    cout << "  Or:  " << Color::CYAN << "dpm lock <packages>" << Color::RESET 
+                         << " then " << Color::CYAN << "dpm install" << Color::RESET << endl;
+                    Output::footer();
+                    return 1;
+                }
+            } else {
+                Output::error("No packages specified and no lock file or manifest found");
+                cout << "  Use: " << Color::CYAN << "dpm install <packages>" << Color::RESET << endl;
+                cout << "  Or:  " << Color::CYAN << "dpm init" << Color::RESET << " to create dpm.json" << endl;
+                cout << "  Or:  " << Color::CYAN << "dpm lock <packages>" << Color::RESET 
+                     << " then " << Color::CYAN << "dpm install" << Color::RESET << endl;
+                Output::footer();
+                return 1;
+            }
         }
-    } else {
+    }
+    
+    if (!packages_to_install.empty()) {
         // Show what we're installing
         Output::section("Requested packages");
-        for (const auto& pkg : packages) {
+        for (const auto& pkg : packages_to_install) {
             cout << "  " << Color::CYAN << Symbol::BULLET << Color::RESET << " " << pkg << endl;
         }
         
@@ -103,7 +160,7 @@ int CommandHandler::handleInstall(const vector<string>& packages) {
         if (lockfile->exists() && lockfile->load()) {
             auto locked = lockfile->getLockedVersions();
             bool all_locked = true;
-            for (const auto& pkg : packages) {
+            for (const auto& pkg : packages_to_install) {
                 if (locked.find(pkg) == locked.end()) {
                     all_locked = false;
                     break;
@@ -120,17 +177,92 @@ int CommandHandler::handleInstall(const vector<string>& packages) {
         if (!from_lockfile) {
             // Resolve dependencies
             Output::section("Resolving dependencies");
+            string packages_str;
+            for (size_t i = 0; i < packages_to_install.size(); i++) {
+                if (i > 0) packages_str += ", ";
+                packages_str += packages_to_install[i];
+            }
+            cout << Color::CYAN << "Resolving dependencies" << Color::RESET << " for: " << packages_str << endl;
+            
             Spinner spinner("Analyzing dependency tree...");
             spinner.start();
             
-            LOG_INFO("Resolving dependencies for " + to_string(packages.size()) + " packages");
+            LOG_INFO("Resolving dependencies for " + to_string(packages_to_install.size()) + " packages");
             
-            result = resolver->resolve(packages, sources);
+            if (offline) {
+                Output::warning("Offline mode: using cached data only");
+                LOG_ERROR("Offline mode enabled");  // Using LOG_ERROR as warning level
+            }
+            if (verbose) {
+                vector<string> source_names;
+                for (const auto& source : sources) {
+                    source_names.push_back(source->getName());
+                }
+                Output::info("Using sources: " + [&source_names]() {
+                    string result;
+                    for (size_t i = 0; i < source_names.size(); i++) {
+                        if (i > 0) result += ", ";
+                        result += source_names[i];
+                    }
+                    return result;
+                }());
+            }
+            
+            result = resolver->resolve(packages_to_install, sources);
             
             if (!result.success) {
                 spinner.stop(false);
+                
+                // Better error messages
+                string error_msg = result.error_message;
+                transform(error_msg.begin(), error_msg.end(), error_msg.begin(), ::tolower);
+                
+                if (error_msg.find("not found") != string::npos) {
+                    // Try to extract package name
+                    for (const auto& pkg : packages_to_install) {
+                        if (result.error_message.find(pkg) != string::npos) {
+                            vector<string> source_names;
+                            for (const auto& source : sources) {
+                                source_names.push_back(source->getName());
+                            }
+                            string sources_str;
+                            for (size_t i = 0; i < source_names.size(); i++) {
+                                if (i > 0) sources_str += ", ";
+                                sources_str += source_names[i];
+                            }
+                            Output::error("Package '" + pkg + "' not found in any source (" + sources_str + ")");
+                            LOG_ERROR("Package not found: " + pkg);
+                            Output::footer();
+                            return 1;
+                        }
+                    }
+                }
+                
+                if (error_msg.find("conflict") != string::npos || error_msg.find("constraint") != string::npos) {
+                    Output::error("Dependency conflict: " + result.error_message);
+                    if (verbose) {
+                        cout << endl;
+                        cout << Color::YELLOW << "Conflict Details:" << Color::RESET << endl;
+                        cout << "  " << result.error_message << endl;
+                    }
+                    LOG_ERROR("Dependency conflict: " + result.error_message);
+                    Output::footer();
+                    return 1;
+                }
+                
                 Output::error("Failed to resolve dependencies: " + result.error_message);
                 LOG_ERROR("Failed to resolve dependencies: " + result.error_message);
+                if (debug) {
+                    // Could add stack trace here if we had exception info
+                    Output::info("Debug: Resolution failed for packages: " + [&packages_to_install]() {
+                        string result;
+                        for (size_t i = 0; i < packages_to_install.size(); i++) {
+                            if (i > 0) result += ", ";
+                            result += packages_to_install[i];
+                        }
+                        return result;
+                    }());
+                }
                 Output::footer();
                 return 1;
             }
@@ -142,6 +274,21 @@ int CommandHandler::handleInstall(const vector<string>& packages) {
     Output::info("Resolved " + to_string(result.selected_versions.size()) + " packages" +
                 (result.used_backtracking ? " (used backtracking)" : "") +
                 (from_lockfile ? " (from lock file)" : ""));
+    
+    if (result.used_backtracking) {
+        Output::warning("Used backtracking to resolve conflicts");
+    }
+    
+    if (verbose || show_resolution) {
+        Output::info("Resolution algorithm: " + string(result.used_backtracking ? "backtracking" : "greedy"));
+        if (show_resolution) {
+            cout << endl;
+            cout << Color::CYAN << "Resolution Details:" << Color::RESET << endl;
+            cout << "  Packages requested: " << packages_to_install.size() << endl;
+            cout << "  Total packages resolved: " << result.selected_versions.size() << endl;
+            cout << "  Algorithm used: " << (result.used_backtracking ? "Backtracking (conflict resolution)" : "Greedy (fast path)") << endl;
+        }
+    }
     
     LOG_INFO("Resolved " + to_string(result.selected_versions.size()) + " packages");
     
@@ -167,11 +314,18 @@ int CommandHandler::handleInstall(const vector<string>& packages) {
         progress.setPrefix("Installing " + pkg.getName());
         progress.update(i);
         
+        if (verbose) {
+            Output::info("Installing " + pkg.getName() + "@" + pkg.getVersion() + "...");
+        }
+        
         LOG_INFO("Installing " + pkg.getName() + " " + pkg.getVersion());
         
         if (installer->installPackage(pkg)) {
             state->addPackage(pkg);
             installed_count++;
+            if (debug) {
+                Output::info("  Successfully installed " + pkg.getName() + "@" + pkg.getVersion());
+            }
         } else {
             LOG_ERROR("Failed to install " + pkg.getName());
             success = false;
@@ -185,12 +339,54 @@ int CommandHandler::handleInstall(const vector<string>& packages) {
         progress.finish();
         
         // Update lock file if we resolved (not from lock file)
-        if (!from_lockfile && !packages.empty()) {
+        if (!from_lockfile && !packages_to_install.empty()) {
             auto dep_map = buildDependencyMap(result);
             auto pkg_info = buildPackageInfo(result);
             lockfile->setFromResolution(result.selected_versions, dep_map, pkg_info);
             if (lockfile->save()) {
                 Output::info("Updated lock file: " + lockfile->getPath());
+            }
+        }
+        
+        // Update manifest file if it exists (only for originally requested packages)
+        if (!packages_to_install.empty()) {
+            string manifest_path = "dpm.json";
+            if (fs::exists(manifest_path)) {
+                ifstream file(manifest_path);
+                if (file.is_open()) {
+                    nlohmann::json manifest;
+                    try {
+                        file >> manifest;
+                        file.close();
+                        
+                        bool updated = false;
+                        set<string> requested_packages(packages_to_install.begin(), packages_to_install.end());
+                        
+                        for (const auto& pair : result.selected_versions) {
+                            // Only update if it was in the original request
+                            if (requested_packages.find(pair.first) != requested_packages.end()) {
+                                if (!manifest.contains("dependencies")) {
+                                    manifest["dependencies"] = nlohmann::json::object();
+                                }
+                                manifest["dependencies"][pair.first] = "==" + pair.second;
+                                updated = true;
+                            }
+                        }
+                        
+                        if (updated) {
+                            ofstream out_file(manifest_path);
+                            if (out_file.is_open()) {
+                                out_file << manifest.dump(2) << endl;
+                                out_file.close();
+                                if (verbose) {
+                                    Output::info("Updated manifest file: " + manifest_path);
+                                }
+                            }
+                        }
+                    } catch (...) {
+                        // Silently fail manifest update
+                    }
+                }
             }
         }
     }

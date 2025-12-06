@@ -9,32 +9,37 @@
 #include "../installer/venv.hpp"
 #include "../core/logger.hpp"
 #include "../core/progress.hpp"
+#include "../core/version.hpp"
+#include "../json.hpp"
 #include <iostream>
 #include <chrono>
 #include <map>
 #include <set>
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
+#include <tuple>
 
 namespace fs = std::filesystem;
 
 using namespace std;
 
-CommandHandler::CommandHandler() {
+CommandHandler::CommandHandler(bool verbose, bool debug, bool offline, 
+                               bool skip_integrity, bool show_resolution)
+    : verbose(verbose), debug(debug), offline(offline), 
+      skip_integrity(skip_integrity), show_resolution(show_resolution) {
     resolver = make_shared<DependencyResolver>();
     installer = make_shared<Installer>();
     state = make_shared<PackageState>();
     state->initialize();
     lockfile = make_shared<LockFile>(fs::current_path().string());
     venv = make_shared<VirtualEnv>(fs::current_path().string());
+    cache = make_shared<Cache>();
+    cache->initialize();
     initializeSources();
 }
 
 void CommandHandler::initializeSources() {
-    // Initialize cache
-    auto cache = make_shared<Cache>();
-    cache->initialize();
-    
     // Add sources
     sources.push_back(make_shared<PyPISource>(cache));
     sources.push_back(make_shared<NpmSource>(cache));
@@ -839,4 +844,501 @@ int CommandHandler::handleVenv(const vector<string>& args) {
     
     Output::footer();
     return 0;
+}
+
+int CommandHandler::handleInit(const vector<string>& args) {
+    Output::header("DPM Init");
+    
+    string manifest_path = "dpm.json";
+    if (fs::exists(manifest_path)) {
+        Output::warning("dpm.json already exists");
+        Output::info("Manifest file already exists at: " + manifest_path);
+        Output::footer();
+        return 0;
+    }
+    
+    string name = args.empty() ? "my-project" : args[0];
+    string version = args.size() > 1 ? args[1] : "1.0.0";
+    
+    // Create basic manifest JSON
+    nlohmann::json manifest;
+    manifest["name"] = name;
+    manifest["version"] = version;
+    manifest["description"] = "";
+    manifest["dependencies"] = nlohmann::json::object();
+    manifest["devDependencies"] = nlohmann::json::object();
+    manifest["sources"] = nlohmann::json::array({"pypi", "npm"});
+    
+    ofstream file(manifest_path);
+    if (file.is_open()) {
+        file << manifest.dump(2) << endl;
+        file.close();
+        Output::success("Created dpm.json for " + name + "@" + version);
+    } else {
+        Output::error("Failed to create dpm.json");
+        Output::footer();
+        return 1;
+    }
+    
+    Output::footer();
+    return 0;
+}
+
+int CommandHandler::handleClean(const vector<string>& args) {
+    Output::header("DPM Clean");
+    
+    bool dry_run = false;
+    for (const auto& arg : args) {
+        if (arg == "--dry-run" || arg == "-n") {
+            dry_run = true;
+        }
+    }
+    
+    auto installed = state->getInstalledPackages();
+    if (installed.empty()) {
+        Output::info("No packages installed");
+        Output::footer();
+        return 0;
+    }
+    
+    // Get declared packages from lock file
+    set<string> declared;
+    if (lockfile->exists() && lockfile->load()) {
+        auto locked = lockfile->getLockedVersions();
+        for (const auto& pair : locked) {
+            declared.insert(pair.first);
+        }
+    }
+    
+    // Find unused packages
+    vector<string> unused;
+    for (const auto& pkg : installed) {
+        if (declared.find(pkg.getName()) == declared.end()) {
+            unused.push_back(pkg.getName());
+        }
+    }
+    
+    if (unused.empty()) {
+        Output::info("No unused packages found");
+        Output::footer();
+        return 0;
+    }
+    
+    if (dry_run) {
+        Output::section("Would remove " + to_string(unused.size()) + " unused packages");
+        for (const auto& pkg_name : unused) {
+            cout << "  " << Color::CYAN << Symbol::BULLET << Color::RESET << " " << pkg_name << endl;
+        }
+        Output::footer();
+        return 0;
+    }
+    
+    Output::section("Removing " + to_string(unused.size()) + " unused packages");
+    ProgressBar progress(unused.size(), "Removing");
+    int removed_count = 0;
+    
+    for (size_t i = 0; i < unused.size(); i++) {
+        progress.setPrefix("Removing " + unused[i]);
+        progress.update(i);
+        
+        // Find the package to uninstall
+        Package pkg;
+        for (const auto& installed_pkg : installed) {
+            if (installed_pkg.getName() == unused[i]) {
+                pkg = installed_pkg;
+                break;
+            }
+        }
+        
+        if (installer->uninstallPackage(pkg)) {
+            state->removePackage(unused[i]);
+            removed_count++;
+        }
+    }
+    
+    progress.finish();
+    Output::success("Removed " + to_string(removed_count) + " unused packages");
+    Output::footer();
+    return 0;
+}
+
+int CommandHandler::handleOutdated(const vector<string>& packages) {
+    Output::header("DPM Outdated");
+    
+    map<string, string> installed;
+    if (packages.empty()) {
+        auto installed_pkgs = state->getInstalledPackages();
+        for (const auto& pkg : installed_pkgs) {
+            installed[pkg.getName()] = pkg.getVersion();
+        }
+    } else {
+        for (const auto& pkg_name : packages) {
+            if (state->isInstalled(pkg_name)) {
+                auto version_opt = state->getInstalledVersion(pkg_name);
+                if (version_opt.has_value()) {
+                    installed[pkg_name] = version_opt.value();
+                }
+            }
+        }
+    }
+    
+    if (installed.empty()) {
+        Output::info("No packages installed");
+        Output::footer();
+        return 0;
+    }
+    
+    Output::section("Checking for outdated packages");
+    Spinner spinner("Checking versions...");
+    spinner.start();
+    
+    vector<tuple<string, string, string, string>> outdated;  // name, installed, latest, source
+    
+    for (const auto& pair : installed) {
+        string name = pair.first;
+        string installed_version = pair.second;
+        
+        for (const auto& source : sources) {
+            if (source->packageExists(name)) {
+                auto pkg_opt = source->fetchLatest(name);
+                if (pkg_opt.has_value()) {
+                    string latest_version = pkg_opt->getVersion();
+                    if (latest_version != installed_version) {
+                        // Simple version comparison - could be improved
+                        try {
+                            Version installed_v(installed_version);
+                            Version latest_v(latest_version);
+                            if (latest_v > installed_v) {
+                                outdated.push_back({name, installed_version, latest_version, source->getName()});
+                            }
+                        } catch (...) {
+                            // If version parsing fails, assume up to date
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    
+    spinner.stop(true);
+    
+    if (outdated.empty()) {
+        Output::success("All packages are up to date!");
+        Output::footer();
+        return 0;
+    }
+    
+    Output::section("Outdated packages (" + to_string(outdated.size()) + ")");
+    for (const auto& [name, installed_v, latest_v, source] : outdated) {
+        cout << "  " << Color::CYAN << Symbol::BULLET << Color::RESET << " "
+             << Color::BOLD << name << Color::RESET << endl;
+        cout << "    Installed: " << installed_v << " -> Latest: " 
+             << Color::GREEN << latest_v << Color::RESET << " (" << source << ")" << endl;
+    }
+    
+    Output::info("Run " + string(Color::CYAN) + "dpm update" + string(Color::RESET) + " to update outdated packages");
+    Output::footer();
+    return 0;
+}
+
+int CommandHandler::handleCache(const vector<string>& args) {
+    Output::header("DPM Cache");
+    
+    string command = args.empty() ? "info" : args[0];
+    
+    if (command == "clear") {
+        Output::warning("This will clear all cached data");
+        Output::info("Clearing cache...");
+        cache->clear();
+        Output::success("Cache cleared");
+        Output::footer();
+        return 0;
+    } else if (command == "info") {
+        Output::section("Cache Information");
+        cout << "  Location: " << cache->getCacheDir() << endl;
+        Output::info("Cache directory: " + cache->getCacheDir());
+        Output::footer();
+        return 0;
+    } else if (command == "list") {
+        Output::section("Cached packages");
+        Output::info("Cache listing not fully implemented");
+        Output::footer();
+        return 0;
+    } else {
+        Output::error("Unknown cache command: " + command);
+        Output::info("Available commands: clear, info, list");
+        Output::footer();
+        return 1;
+    }
+}
+
+int CommandHandler::handlePin(const vector<string>& packages) {
+    Output::header("DPM Pin");
+    
+    if (packages.empty()) {
+        Output::error("No package specified");
+        Output::info("Use: dpm pin <package>@<version>");
+        Output::footer();
+        return 1;
+    }
+    
+    string pkg_spec = packages[0];
+    size_t at_pos = pkg_spec.find('@');
+    if (at_pos == string::npos) {
+        Output::error("Invalid format. Use: package@version");
+        Output::footer();
+        return 1;
+    }
+    
+    string name = pkg_spec.substr(0, at_pos);
+    string version = pkg_spec.substr(at_pos + 1);
+    
+    // Check if dpm.json exists, create if not
+    string manifest_path = "dpm.json";
+    nlohmann::json manifest;
+    
+    if (fs::exists(manifest_path)) {
+        ifstream file(manifest_path);
+        if (file.is_open()) {
+            file >> manifest;
+            file.close();
+        }
+    } else {
+        manifest["name"] = "my-project";
+        manifest["version"] = "1.0.0";
+        manifest["dependencies"] = nlohmann::json::object();
+        manifest["devDependencies"] = nlohmann::json::object();
+        manifest["sources"] = nlohmann::json::array({"pypi", "npm"});
+    }
+    
+    manifest["dependencies"][name] = "==" + version;
+    
+    ofstream file(manifest_path);
+    if (file.is_open()) {
+        file << manifest.dump(2) << endl;
+        file.close();
+        Output::success("Pinned " + name + " to " + version);
+    } else {
+        Output::error("Failed to pin " + name);
+        Output::footer();
+        return 1;
+    }
+    
+    Output::footer();
+    return 0;
+}
+
+int CommandHandler::handleUnpin(const vector<string>& packages) {
+    Output::header("DPM Unpin");
+    
+    if (packages.empty()) {
+        Output::error("No package specified");
+        Output::footer();
+        return 1;
+    }
+    
+    string name = packages[0];
+    string manifest_path = "dpm.json";
+    
+    if (!fs::exists(manifest_path)) {
+        Output::error("No manifest file found");
+        Output::footer();
+        return 1;
+    }
+    
+    ifstream file(manifest_path);
+    nlohmann::json manifest;
+    if (file.is_open()) {
+        file >> manifest;
+        file.close();
+    } else {
+        Output::error("Failed to read manifest");
+        Output::footer();
+        return 1;
+    }
+    
+    if (!manifest.contains("dependencies") || !manifest["dependencies"].contains(name)) {
+        Output::warning("Package " + name + " not found in manifest");
+        Output::footer();
+        return 0;
+    }
+    
+    string current = manifest["dependencies"][name];
+    if (current.substr(0, 2) == "==") {
+        string version = current.substr(2);
+        manifest["dependencies"][name] = "^" + version;
+        
+        ofstream out_file(manifest_path);
+        if (out_file.is_open()) {
+            out_file << manifest.dump(2) << endl;
+            out_file.close();
+            Output::success("Unpinned " + name + ", now allows minor updates (^" + version + ")");
+        } else {
+            Output::error("Failed to update manifest");
+            Output::footer();
+            return 1;
+        }
+    } else {
+        Output::info(name + " is not pinned");
+    }
+    
+    Output::footer();
+    return 0;
+}
+
+int CommandHandler::handleExport(const vector<string>& args) {
+    Output::header("DPM Export");
+    
+    if (args.empty()) {
+        Output::error("No format specified");
+        Output::info("Formats: requirements.txt, package.json, lock");
+        Output::footer();
+        return 1;
+    }
+    
+    string format_type = args[0];
+    string output_path = args.size() > 1 ? args[1] : "";
+    
+    transform(format_type.begin(), format_type.end(), format_type.begin(), ::tolower);
+    
+    if (format_type == "requirements.txt" || format_type == "requirements") {
+        if (output_path.empty()) output_path = "requirements.txt";
+        
+        if (!lockfile->exists() || !lockfile->load()) {
+            Output::error("No lock file found");
+            Output::footer();
+            return 1;
+        }
+        
+        auto locked = lockfile->getLockedVersions();
+        ofstream file(output_path);
+        if (file.is_open()) {
+            for (const auto& pair : locked) {
+                file << pair.first << "==" << pair.second << endl;
+            }
+            file.close();
+            Output::success("Exported to " + output_path);
+        } else {
+            Output::error("Failed to export");
+            Output::footer();
+            return 1;
+        }
+    } else if (format_type == "package.json" || format_type == "package") {
+        if (output_path.empty()) output_path = "package.json";
+        
+        string manifest_path = "dpm.json";
+        if (!fs::exists(manifest_path)) {
+            Output::error("No manifest file found");
+            Output::footer();
+            return 1;
+        }
+        
+        ifstream file(manifest_path);
+        nlohmann::json manifest;
+        if (file.is_open()) {
+            file >> manifest;
+            file.close();
+        }
+        
+        nlohmann::json package_json;
+        package_json["name"] = manifest.value("name", "my-project");
+        package_json["version"] = manifest.value("version", "1.0.0");
+        package_json["description"] = manifest.value("description", "");
+        package_json["dependencies"] = nlohmann::json::object();
+        
+        if (manifest.contains("dependencies")) {
+            for (auto& [key, value] : manifest["dependencies"].items()) {
+                string version = value.get<string>();
+                if (version.substr(0, 2) == "==") {
+                    version = version.substr(2);
+                }
+                package_json["dependencies"][key] = version;
+            }
+        }
+        
+        ofstream out_file(output_path);
+        if (out_file.is_open()) {
+            out_file << package_json.dump(2) << endl;
+            out_file.close();
+            Output::success("Exported to " + output_path);
+        } else {
+            Output::error("Failed to export");
+            Output::footer();
+            return 1;
+        }
+    } else if (format_type == "lock") {
+        if (output_path.empty()) output_path = "dpm.lock.export";
+        
+        if (!lockfile->exists() || !lockfile->load()) {
+            Output::error("No lock file found");
+            Output::footer();
+            return 1;
+        }
+        
+        // Copy lock file
+        ifstream src(lockfile->getPath(), ios::binary);
+        ofstream dst(output_path, ios::binary);
+        if (src.is_open() && dst.is_open()) {
+            dst << src.rdbuf();
+            src.close();
+            dst.close();
+            Output::success("Exported lock file to " + output_path);
+        } else {
+            Output::error("Failed to export");
+            Output::footer();
+            return 1;
+        }
+    } else {
+        Output::error("Unknown format: " + format_type);
+        Output::info("Formats: requirements.txt, package.json, lock");
+        Output::footer();
+        return 1;
+    }
+    
+    Output::footer();
+    return 0;
+}
+
+int CommandHandler::handleRepo(const vector<string>& args) {
+    Output::header("DPM Repository");
+    
+    if (args.empty()) {
+        Output::info("No custom repositories configured");
+        Output::info("Use: dpm repo add <name> <url> [username] [password]");
+        Output::footer();
+        return 0;
+    }
+    
+    string command = args[0];
+    
+    if (command == "add") {
+        if (args.size() < 3) {
+            Output::error("Usage: dpm repo add <name> <url> [username] [password]");
+            Output::footer();
+            return 1;
+        }
+        Output::info("Repository management not fully implemented");
+        Output::warning("Custom repositories feature is not yet available in C++ implementation");
+        Output::footer();
+        return 0;
+    } else if (command == "remove") {
+        if (args.size() < 2) {
+            Output::error("Usage: dpm repo remove <name>");
+            Output::footer();
+            return 1;
+        }
+        Output::info("Repository management not fully implemented");
+        Output::footer();
+        return 0;
+    } else if (command == "list") {
+        Output::info("No custom repositories configured");
+        Output::footer();
+        return 0;
+    } else {
+        Output::error("Unknown repo command: " + command);
+        Output::info("Commands: add, remove, list");
+        Output::footer();
+        return 1;
+    }
 }

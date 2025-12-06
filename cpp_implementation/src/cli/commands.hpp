@@ -6,6 +6,7 @@
 #include "../installer/lockfile.hpp"
 #include "../installer/venv.hpp"
 #include "../sources/source.hpp"
+#include "../network/cache.hpp"
 #include <string>
 #include <vector>
 #include <memory>
@@ -17,7 +18,8 @@ using namespace std;
 // handles all the cli commands
 class CommandHandler {
 public:
-    CommandHandler();
+    CommandHandler(bool verbose = false, bool debug = false, bool offline = false, 
+                   bool skip_integrity = false, bool show_resolution = false);
     
     // set up package sources (pypi, npm, etc)
     void initializeSources();
@@ -52,13 +54,44 @@ public:
     // dpm venv - create/manage virtual environment
     int handleVenv(const vector<string>& args);
     
+    // dpm init - initialize dpm.json manifest file
+    int handleInit(const vector<string>& args);
+    
+    // dpm clean - remove unused packages
+    int handleClean(const vector<string>& args);
+    
+    // dpm outdated - check for outdated packages
+    int handleOutdated(const vector<string>& packages);
+    
+    // dpm cache - manage cache
+    int handleCache(const vector<string>& args);
+    
+    // dpm pin <package>@<version> - pin package to exact version
+    int handlePin(const vector<string>& packages);
+    
+    // dpm unpin <package> - unpin package
+    int handleUnpin(const vector<string>& packages);
+    
+    // dpm export <format> - export dependencies
+    int handleExport(const vector<string>& args);
+    
+    // dpm repo - manage custom repositories
+    int handleRepo(const vector<string>& args);
+    
 private:
+    bool verbose;
+    bool debug;
+    bool offline;
+    bool skip_integrity;
+    bool show_resolution;
+    
     vector<shared_ptr<Source>> sources;
     shared_ptr<DependencyResolver> resolver;
     shared_ptr<Installer> installer;
     shared_ptr<PackageState> state;
     shared_ptr<LockFile> lockfile;
     shared_ptr<VirtualEnv> venv;
+    shared_ptr<Cache> cache;
     
     // creates installation plan from resolved versions
     InstallationPlan buildPlan(const ResolutionResult& result);

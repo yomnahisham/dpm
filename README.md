@@ -1,13 +1,7 @@
 # DPM - Dependency Package Manager
-```
-  ____  ____  __  __ 
- |  _ \|  _ \|  \/  |
- | | | | |_) | |\/| |
- | |_| |  __/| |  | |
- |____/|_|   |_|  |_|
-```
+<img width="1200" height="644" alt="Screenshot 2025-12-05 at 10 21 18 PM" src="https://github.com/user-attachments/assets/86bb28b3-a6af-42b8-872e-9734564b9c9d" />
 
-A cross-language package manager written in Python that resolves dependencies using a hybrid greedy/backtracking algorithm.
+_A cross-language package manager written in Python that resolves dependencies using a hybrid greedy/backtracking algorithm._
 
 ## What it does
 
@@ -253,9 +247,9 @@ The hybrid approach gives you the best of both worlds:
 
 | Approach | Speed | Completeness | Use Case |
 |---------|-------|--------------|----------|
-| Greedy only | ⚡ Very fast | ❌ Incomplete | Simple projects |
-| Backtracking only | 🐌 Slow | ✅ Complete | Complex projects |
-| **Hybrid** | ⚡ Fast (90% of time) | ✅ Complete | **All projects** |
+| Greedy only | Very fast | Incomplete | Simple projects |
+| Backtracking only | Slow | Complete | Complex projects |
+| **Hybrid** | Fast (90% of time) | Complete | **All projects** |
 
 **Real-world performance:**
 - Simple cases (1-3 packages): < 1 second (greedy)
@@ -464,71 +458,6 @@ dpm --offline resolve requests
 dpm --verbose resolve flask django
 ```
 
-## Features
-
-### Core Features
-- [x] Greedy dependency resolution
-- [x] Backtracking with constraint propagation
-- [x] PyPI and npm support
-- [x] System package manager support (apt, yum, brew)
-- [x] Parallel fetching for speed
-- [x] Response caching with TTL and size limits
-- [x] Lock file support with integrity checksums
-- [x] Dependency tree visualization
-- [x] Progress bars and colored output
-- [x] Integrity verification (SHA256 checksums)
-- [x] Virtual environments
-
-### Advanced Features
-- [x] Package manifest file (dpm.json)
-- [x] Install from lock file
-- [x] Verbose/debug mode
-- [x] Better error messages and conflict reporting
-- [x] Clean command (remove unused packages)
-- [x] Outdated package checking
-- [x] Cache management
-- [x] Package pinning/unpinning
-- [x] Export to requirements.txt, package.json
-- [x] Offline mode
-- [x] Resolution details
-- [x] Configuration file support
-- [x] Structured logging
-- [x] Installation plan module
-- [x] Multiple environment support (conda, poetry, pipenv)
-- [x] Repository management
-
-### Robustness Features
-
-DPM is built for production use with comprehensive error handling and recovery:
-
-- **Network Resilience**
-  - Automatic retry with exponential backoff (3 attempts by default)
-  - Handles rate limits (429 responses) with longer backoff
-  - Timeout protection (30s per request, 60s for resolution)
-  - Graceful degradation when network is unavailable
-
-- **Security**
-  - Input sanitization prevents path traversal attacks
-  - Package name validation blocks malicious inputs
-  - Version string validation ensures safe parsing
-
-- **Data Safety**
-  - Atomic file writes prevent corruption (cache and lock files)
-  - Transaction-safe operations (all-or-nothing)
-  - Automatic cleanup on failures
-
-- **Performance**
-  - Cache TTL (24h default) ensures fresh data
-  - Cache size limits (100MB default) with automatic eviction
-  - SystemSource optimization (caching and heuristics)
-  - Periodic cache size checks (not on every write)
-
-- **Reliability**
-  - Installation rollback on failure
-  - Integrity verification after installation
-  - Resolution timeout prevents infinite hangs
-  - Comprehensive error logging and reporting
-
 ## Configuration
 
 DPM uses configuration files for customization:
@@ -572,34 +501,6 @@ DPM includes several robustness features that can be configured in `~/.dpm/confi
 - **60s resolution timeout**: Prevents hangs while allowing complex resolutions
 - **3 retries**: Handles transient network issues without excessive delays
 - **0.5 backoff**: Exponential backoff prevents overwhelming servers
-
-### How Robustness Features Work
-
-**Network Retry Example:**
-```
-Request fails → Wait 0.5s → Retry
-Request fails → Wait 1.0s → Retry
-Request fails → Wait 2.0s → Retry
-Request fails → Report error
-```
-
-**Cache Management Example:**
-```
-Cache size: 95MB (under limit)
-New entry: 10MB → Total: 105MB (over 100MB limit)
-Evict oldest entries until size < 80MB
-Continue with new entry
-```
-
-**Installation Rollback Example:**
-```
-Installing: package-a, package-b, package-c
-✓ package-a installed
-✓ package-b installed
-✗ package-c failed (integrity check failed)
-Rolling back: removing package-b, package-a
-Restoring previous state
-```
 
 ## Virtual Environments
 
@@ -711,50 +612,6 @@ DPM is optimized for speed and efficiency:
 4. **Memoization**: Caches failed states to avoid redundant work
 5. **SystemSource Optimization**: Caches system package checks
 
-## Testing
-
-DPM includes comprehensive test coverage:
-
-### Unit Tests
-
-```bash
-# Test version parsing and comparison
-python3 tests/unit/test_version.py
-
-# Test dependency constraint parsing
-python3 tests/unit/test_dependency.py
-
-# Test graph operations and cycle detection
-python3 tests/unit/test_graph.py
-```
-
-### Integration Testing
-
-```bash
-# Test with real packages
-dpm resolve requests flask django
-
-# Test lock file workflow
-dpm lock requests flask
-dpm install
-
-# Test offline mode
-dpm --offline resolve requests
-```
-
-### Test Results
-
-All 28 tests pass, covering:
-- ✅ Core functionality (6 tests)
-- ✅ File management (4 tests)
-- ✅ Management commands (5 tests)
-- ✅ Advanced features (3 tests)
-- ✅ Unit tests (3 suites)
-- ✅ Performance tests (2 tests)
-- ✅ Robustness tests (6 tests)
-
-See [Test Results](docs/test_results.md) for detailed results.
-
 ## Use Cases
 
 ### 1. Python Projects
@@ -802,31 +659,6 @@ dpm install
 # Verify integrity
 dpm outdated  # should show no updates if lock file is current
 ```
-
-## Troubleshooting
-
-### Common Issues
-
-**"Package not found"**
-- Check spelling and package name
-- Verify package exists on pypi.org or npmjs.com
-- Try `dpm search <package>` to find similar packages
-
-**"Failed to resolve dependencies"**
-- Might be a version conflict
-- Use `dpm resolve <package>` to see details
-- Use `--show-resolution` for detailed information
-- Check if packages are compatible
-
-**"Slow first run"**
-- First run fetches from network
-- Subsequent runs use cache (much faster)
-- Use `dpm cache info` to check cache status
-
-**"Resolution timeout"**
-- Complex dependency trees may take longer
-- Increase timeout in config: `"resolution_timeout_seconds": 120`
-- Check for circular dependencies
 
 ### Getting Help
 

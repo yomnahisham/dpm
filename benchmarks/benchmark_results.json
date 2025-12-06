@@ -1,0 +1,206 @@
+[
+  {
+    "packages": 1,
+    "package_names": [
+      "requests"
+    ],
+    "algorithm": "greedy",
+    "success": true,
+    "runtime": 4.909201145172119,
+    "memory_peak": 13.686725616455078,
+    "memory_current": 5.935778617858887,
+    "packages_resolved": 5,
+    "combinations_tried": 0,
+    "category": "small_simple"
+  },
+  {
+    "packages": 1,
+    "package_names": [
+      "flask"
+    ],
+    "algorithm": "greedy",
+    "success": true,
+    "runtime": 12.059863090515137,
+    "memory_peak": 5.557321548461914,
+    "memory_current": 2.58162784576416,
+    "packages_resolved": 12,
+    "combinations_tried": 0,
+    "category": "small_simple"
+  },
+  {
+    "packages": 2,
+    "package_names": [
+      "requests",
+      "flask"
+    ],
+    "algorithm": "greedy",
+    "success": true,
+    "runtime": 11.261053323745728,
+    "memory_peak": 15.822200775146484,
+    "memory_current": 8.305431365966797,
+    "packages_resolved": 17,
+    "combinations_tried": 0,
+    "category": "small_medium"
+  },
+  {
+    "packages": 2,
+    "package_names": [
+      "requests",
+      "flask"
+    ],
+    "algorithm": "backtracking",
+    "success": true,
+    "runtime": 1.860002040863037,
+    "memory_peak": 4.959146499633789,
+    "memory_current": 0.04361438751220703,
+    "packages_resolved": 17,
+    "combinations_tried": 0,
+    "category": "small_medium"
+  },
+  {
+    "packages": 2,
+    "package_names": [
+      "numpy",
+      "pandas"
+    ],
+    "algorithm": "greedy",
+    "success": true,
+    "runtime": 8.423235177993774,
+    "memory_peak": 22.580981254577637,
+    "memory_current": 9.438125610351562,
+    "packages_resolved": 6,
+    "combinations_tried": 0,
+    "category": "small_medium"
+  },
+  {
+    "packages": 2,
+    "package_names": [
+      "numpy",
+      "pandas"
+    ],
+    "algorithm": "backtracking",
+    "success": true,
+    "runtime": 1.5815048217773438,
+    "memory_peak": 11.01564884185791,
+    "memory_current": 0.041534423828125,
+    "packages_resolved": 6,
+    "combinations_tried": 0,
+    "category": "small_medium"
+  },
+  {
+    "packages": 4,
+    "package_names": [
+      "django",
+      "flask",
+      "requests",
+      "numpy"
+    ],
+    "algorithm": "greedy",
+    "success": true,
+    "runtime": 13.846740961074829,
+    "memory_peak": 23.686050415039062,
+    "memory_current": 14.62912654876709,
+    "packages_resolved": 23,
+    "combinations_tried": 0,
+    "category": "medium"
+  },
+  {
+    "packages": 4,
+    "package_names": [
+      "django",
+      "flask",
+      "requests",
+      "numpy"
+    ],
+    "algorithm": "backtracking",
+    "success": true,
+    "runtime": 6.280463933944702,
+    "memory_peak": 10.992063522338867,
+    "memory_current": 0.08426761627197266,
+    "packages_resolved": 23,
+    "combinations_tried": 0,
+    "category": "medium"
+  },
+  {
+    "packages": 5,
+    "package_names": [
+      "flask",
+      "django",
+      "numpy",
+      "pandas",
+      "matplotlib"
+    ],
+    "algorithm": "greedy",
+    "success": true,
+    "runtime": 18.366370916366577,
+    "memory_peak": 36.01658344268799,
+    "memory_current": 25.206897735595703,
+    "packages_resolved": 30,
+    "combinations_tried": 0,
+    "category": "medium_large"
+  },
+  {
+    "packages": 5,
+    "package_names": [
+      "flask",
+      "django",
+      "numpy",
+      "pandas",
+      "matplotlib"
+    ],
+    "algorithm": "backtracking",
+    "success": true,
+    "runtime": 19.767992973327637,
+    "memory_peak": 11.018126487731934,
+    "memory_current": 0.09290313720703125,
+    "packages_resolved": 30,
+    "combinations_tried": 0,
+    "category": "medium_large"
+  },
+  {
+    "packages": 10,
+    "package_names": [
+      "django",
+      "flask",
+      "requests",
+      "numpy",
+      "pandas",
+      "scipy",
+      "matplotlib",
+      "seaborn",
+      "jupyter",
+      "ipython"
+    ],
+    "algorithm": "greedy",
+    "success": false,
+    "runtime": 83.90637993812561,
+    "memory_peak": 74.23427677154541,
+    "memory_current": 62.534300804138184,
+    "packages_resolved": 0,
+    "combinations_tried": 0,
+    "category": "large"
+  },
+  {
+    "packages": 10,
+    "package_names": [
+      "django",
+      "flask",
+      "requests",
+      "numpy",
+      "pandas",
+      "scipy",
+      "matplotlib",
+      "seaborn",
+      "jupyter",
+      "ipython"
+    ],
+    "algorithm": "backtracking",
+    "success": true,
+    "runtime": 269.2762849330902,
+    "memory_peak": 16.67657470703125,
+    "memory_current": 0.2624359130859375,
+    "packages_resolved": 121,
+    "combinations_tried": 0,
+    "category": "large"
+  }
+]

@@ -3,10 +3,16 @@
 #include <cstdlib>
 #include <sstream>
 #include <cstdio>
+#include <cstring>
 #include <array>
 #include <memory>
 
 using namespace std;
+
+static bool isInVirtualEnvironment() {
+    const char* venv = getenv("VIRTUAL_ENV");
+    return venv != nullptr && strlen(venv) > 0;
+}
 
 Installer::Installer() {}
 
@@ -86,7 +92,12 @@ string Installer::detectPackageManager() const {
 bool Installer::installPythonPackage(const Package& package) {
     ostringstream cmd;
     // Use pip3 with --user and --break-system-packages for modern Python (PEP 668)
-    cmd << "pip3 install --user --break-system-packages --quiet " << package.getName();
+    // But only use --user when NOT in a virtual environment
+    cmd << "pip3 install";
+    if (!isInVirtualEnvironment()) {
+        cmd << " --user";
+    }
+    cmd << " --break-system-packages --quiet " << package.getName();
     if (!package.getVersion().empty()) {
         cmd << "==" << package.getVersion();
     }
